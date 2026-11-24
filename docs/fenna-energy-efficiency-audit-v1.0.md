@@ -1,3 +1,67 @@
+# Fenna Energy Efficiency Audit v1.1 — update 24-11-2026
+
+**Status:** inventarisatie + methodiek, met een tweede momentopname (§U). Geen implementatie (wacht op expliciete GO).
+
+---
+
+## §U. Update v1.1: momentopname di 24-11-2026 12:51 CET tegenover za 21-11 13:28
+
+Ook deze update is READONLY. Er is alleen statusuitlezing gedaan (`GetLiveContext`, `GetDateTime`). Er is nog steeds **geen toegang tot historie**, dus de EEI en alle deelscores blijven **ONBEKEND**. De HEMS v2-validatieperiode (t/m 23-11) is afgelopen. Ik heb niets gezien dat wijst op een wijziging aan HEMS.
+
+### U.1 Wat is veranderd
+
+| Onderwerp | 21-11 13:28 | 24-11 12:51 | Duiding | Label |
+|---|---|---|---|---|
+| HomeWizard P1-entiteiten | alle `unavailable` | **niet meer zichtbaar** in de blootgestelde set | Verwijderd, niet meer blootgesteld of hernoemd; niet vast te stellen welke | M / [?] |
+| HEMS P1 Node | `stale` | **`active`** | Primaire P1-node lijkt hersteld | M |
+| Actieve grid-tier | TIER_2_ANKER_P1 | ongewijzigd TIER_2_ANKER_P1 (`active_tier_still_valid`) | HEMS is nog niet teruggeschakeld naar de voorkeursbron; geen nieuwe switch geregistreerd | M |
+| Net | 884 W import | **117 W export**, 0 W import | PV-overschot op een novembermiddag; de batterij laadt dus niet alles op, of is vol | M / [?] |
+| HomeNet Dag Import/Export | 0 / 0 kWh | **0 / 0 kWh** | Nog steeds defect: export > 0 nu, en import 0 sinds middernacht is niet mogelijk | M |
+| Buitentemperatuur | geen bron | **T-Roc 5,0 °C / Tiguan 3,0 °C** | Eerste buitensignaal, maar autosensoren (2 °C onderling verschil, invloed van motor, zon en garage) zijn **ongeschikt voor graaddagen**. KNMI blijft nodig | M |
+| Woonkamer (3 sensoren + WinterClimate) | 18,7–19,1 °C | **16,4–16,7 °C** | **Onder de eigen comfortondergrens van 19,0 °C** (CarPlay-config) | M |
+| Huiskamer-thermostaat | 19,2 °C, setpoint 9,4 °C | **18,8 °C, setpoint 19,0 °C** | De thermostaat ziet bijna-setpoint en vraagt dus nauwelijks warmte, terwijl de woonkamer 2,1 °C kouder is (`Fenna Klimaat Temperatuurverschil` 0,2 → **2,1 °C**) | M |
+| RV huiskamer / woonkamer | 68 / 59 % | 60 / 53–54 % | Structureel verschil van 6–9 procentpunt tussen de sensoren | M |
+| Batterijtemperaturen (unit / exp1 / exp2) | 23 / 12 / 15 °C | **10 / 6 / 8 °C** | Koude berging. Capaciteit, laadvermogen en RTE nemen bij lage celtemperatuur af [?, datasheet ontbreekt] | M |
+| PV fallback / bronwissels / geldige metingen | 452 / 672 / 30.022 | 456 / 674 / 30.667 | Nog steeds **0 validaties**, `TRUSTED` tegenover `INSUFFICIENT_EVIDENCE` | M |
+| Energiepilots batterij/Tiguan | uit | **uit** | Geen HEMS-sturing; gerealiseerde HEMS-besparing blijft ≈ 0 | M |
+| Klimaatautonomie / override | gepauzeerd, override sinds 15-11 | **ongewijzigd** (dag 9) | — | M |
+| Tarief in de beslislaag | `unknown` | `unknown` | — | M |
+| Backup | poging 21-11 mislukt | **24-11 geslaagd** | Opgelost | M |
+
+### U.2 Nieuwe bevinding: de thermostaat meet op een andere plek dan het comfortsignaal
+
+Op 24-11 12:51 staat de Huiskamer-thermostaat op 18,8 °C bij een setpoint van 19,0 °C. De vier woonkamersignalen meten 16,4–16,7 °C. Dat is een concrete aanwijzing dat **de regelende sensor niet representatief is voor de verblijfsruimte**. Dat kan twee kanten op werken:
+- **Comfort:** de woonkamer zit 2,3–2,6 °C onder de eigen ondergrens van 19 °C. De ketel ziet geen reden om te stoken.
+- **Energie:** als WinterClimate of de bewoner dit compenseert door het setpoint te verhogen, stookt de thermostaatruimte over.
+
+Betrouwbaarheid: **matig.** Het gaat om één tijdstip, en of "Huiskamer" en "Woonkamer" dezelfde ruimte zijn is onbekend [?]. Op 21-11 was het verschil maar 0,2 °C, dus het effect wisselt in de tijd. Met historie is dit hard te maken: het verschil thermostaat−woonkamer per uur, uitgezet tegen buitentemperatuur, zoninstraling en tijdstip. Deze analyse krijgt prioriteit in deelscore 1 (gas) en 5 (comfort).
+
+### U.3 Bijgewerkte top 5
+
+| # | Bevinding | Wijziging t.o.v. v1.0 |
+|---|---|---|
+| 1 | Meetketen elektriciteit: P1-node weer `active`, maar HEMS draait nog op tier 2, de HomeWizard-entiteiten zijn verdwenen en de dagtellers blijven 0 kWh | Deels hersteld; de reeksbreuk blijft. De datum van herstel is de nieuwe segmentgrens voor de analyse |
+| 2 | PV-trust zonder validatiebewijs | Ongewijzigd |
+| 3 | **Thermostaat tegenover verblijfsruimte: 2,1 °C verschil, woonkamer onder de comfortgrens** | **Nieuw**, vervangt de setpoint-observatie van v1.0 |
+| 4 | Batterijparameters onvolledig (bruikbaar 0,0 kWh, twee reserves, RTE aangenomen), plus **koude modules (6–10 °C)** | Uitgebreid |
+| 5 | Tarief niet beschikbaar in de beslislaag; pilots uit | Ongewijzigd |
+
+Klimaatautonomie die al 9 dagen overruled is, blijft een randvoorwaarde voor elke WinterClimate-vergelijking.
+
+### U.4 Wat dit verandert aan de methodiek
+
+- **Deelscore 1 (gas):** voeg als vaste diagnose toe: het temperatuurverschil tussen regelsensor en verblijfsruimte (P50/P90 per stookuur). Een structureel verschil > 1 °C wordt een aparte inefficiëntie- of comfortpost, niet verwerkt in `b`.
+- **Deelscore 3 (batterij):** rapporteer RTE en laadvermogen per celtemperatuurklasse (< 10 °C, 10–20 °C, > 20 °C). Bij deze temperaturen is de waarde uit §2.3 (η = 90 %) waarschijnlijk optimistisch [?].
+- **Datasegmentatie:** nieuwe grens = het moment waarop de HEMS P1 Node weer `active` werd (tussen 21-11 13:28 en 24-11 12:51; exact tijdstip te bepalen uit de historie).
+
+### U.5 Wat nog steeds nodig is
+
+Ongewijzigd: de data-aanlevering uit §6, met als minimum D1, D2, D6 en D7, plus leestoegang tot historie. Het eerder ontworpen diagnostische account (`claude`, token in de macOS Keychain) is vanuit deze cloudsessie niet bereikbaar. Een sessie op de Mac (Claude Desktop of `claude remote-control`) is de route om `/api/history` en `/api/logbook` te gebruiken zonder een nieuw systeem te bouwen.
+
+---
+
+*Hieronder volgt de oorspronkelijke tekst van v1.0 (peilmoment 21-11-2026), inhoudelijk ongewijzigd.*
+
 # Fenna Energy Efficiency Audit v1.0 — eerste oplevering
 
 **Status:** inventarisatie + methodiek. Geen implementatie (wacht op expliciete GO).
